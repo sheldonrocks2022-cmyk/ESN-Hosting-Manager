@@ -101,7 +101,8 @@ async def on_ready():
 async def setup_hook():
     for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce'):
         await bot.load_extension(extension)
-    bot.add_view(TicketPanel())\n    logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
+    bot.add_view(TicketPanel())
+    logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
     if GUILD_ID:
         guild = discord.Object(id=GUILD_ID)
         bot.tree.copy_global_to(guild=guild)
