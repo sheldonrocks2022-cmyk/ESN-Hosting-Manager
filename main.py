@@ -98,7 +98,7 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
-    for extension in ('esn.admin', 'esn.security', 'esn.trials'):
+    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting'):
         await bot.load_extension(extension)
     bot.add_view(TicketPanel())
     if GUILD_ID:
