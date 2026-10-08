@@ -8,7 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv()\nload_dotenv(Path(__file__).resolve().parent.parent / '.env')
 logging.basicConfig(level=logging.INFO)
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID") or "0")
@@ -100,7 +100,7 @@ async def on_ready():
 async def setup_hook():
     for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce'):
         await bot.load_extension(extension)
-    bot.add_view(TicketPanel())
+    bot.add_view(TicketPanel())\n    logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
     if GUILD_ID:
         guild = discord.Object(id=GUILD_ID)
         bot.tree.copy_global_to(guild=guild)
@@ -117,6 +117,9 @@ async def setup(interaction: discord.Interaction, staff_role: discord.Role, tick
         return await interaction.response.send_message("Manage Server permission required.", ephemeral=True)
     save_setting(interaction.guild.id, "staff_role", staff_role.id)
     save_setting(interaction.guild.id, "ticket_category", ticket_category.id)
+    from esn import config
+    config.put(interaction.guild.id, "staff_role", staff_role.id)
+    config.put(interaction.guild.id, "ticket_category", ticket_category.id)
     await interaction.response.send_message(
         f"**Manager configured!**\\nStaff role: {staff_role.mention}\\nTicket category: {ticket_category.name}\\nSettings survive restarts.",
         ephemeral=True,
@@ -169,8 +172,9 @@ async def ticketclose(interaction: discord.Interaction):
     member = interaction.user
     if not isinstance(member, discord.Member) or (member.id != owner_id and not is_staff(member)):
         return await interaction.response.send_message("You cannot close this ticket.", ephemeral=True)
-    await interaction.response.send_message("Closing this ticket. Messages will be deleted with the channel.")
-    await channel.delete(reason=f"Ticket closed by {member.id}")
+    await interaction.response.send_message("Closing this ticket by archiving it. Staff can reopen it later.")
+    await channel.edit(name=("archived-" + channel.name)[:100], topic=f"esnhm-archived:{owner_id}", reason=f"Ticket archived by {member.id}")
+    await channel.set_permissions(member, send_messages=False) if member.id == owner_id else None
 
 if __name__ == "__main__":
     if not TOKEN:
