@@ -1,6 +1,8 @@
 """ESN Hosting Manager MAX — initial functional foundation."""
 import os
 import logging
+import sqlite3
+from pathlib import Path
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -12,11 +14,24 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID") or "0")
 STAFF_ROLE_ID = int(os.getenv("STAFF_ROLE_ID") or "0")
 TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID") or "0")
+Path("data").mkdir(exist_ok=True)
+DB = sqlite3.connect("data/settings.sqlite3")
+DB.execute("CREATE TABLE IF NOT EXISTS settings (guild_id INTEGER, setting TEXT, value INTEGER, PRIMARY KEY (guild_id, setting))")
+DB.commit()
+
+def setting(guild_id: int, name: str, fallback: int = 0) -> int:
+    row = DB.execute("SELECT value FROM settings WHERE guild_id=? AND setting=?", (guild_id, name)).fetchone()
+    return int(row[0]) if row else fallback
+
+def save_setting(guild_id: int, name: str, value: int) -> None:
+    DB.execute("INSERT INTO settings(guild_id,setting,value) VALUES(?,?,?) ON CONFLICT(guild_id,setting) DO UPDATE SET value=excluded.value", (guild_id, name, value))
+    DB.commit()
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def is_staff(member: discord.Member) -> bool:
-    return member.guild_permissions.manage_guild or any(role.id == STAFF_ROLE_ID for role in member.roles)
+    role_id = setting(member.guild.id, 'staff_role', STAFF_ROLE_ID)
+    return member.guild_permissions.manage_guild or (role_id != 0 and any(role.id == role_id for role in member.roles))
 
 class TicketSelect(discord.ui.Select):
     def __init__(self):
@@ -33,12 +48,14 @@ class TicketSelect(discord.ui.Select):
         guild = interaction.guild
         if guild is None or not isinstance(interaction.user, discord.Member):
             return await interaction.response.send_message("Use this panel in a server.", ephemeral=True)
-        if not TICKET_CATEGORY_ID:
+        category_id = setting(guild.id, "ticket_category", TICKET_CATEGORY_ID)
+        if not category_id:
             return await interaction.response.send_message("Ticket category is not configured.", ephemeral=True)
-        category = guild.get_channel(TICKET_CATEGORY_ID)
+        category = guild.get_channel(category_id)
         if not isinstance(category, discord.CategoryChannel):
             return await interaction.response.send_message("Configured ticket category was not found.", ephemeral=True)
-        staff_role = guild.get_role(STAFF_ROLE_ID) if STAFF_ROLE_ID else None
+        staff_id = setting(guild.id, "staff_role", STAFF_ROLE_ID)
+        staff_role = guild.get_role(staff_id) if staff_id else None
         if staff_role is None:
             return await interaction.response.send_message("Staff role is not configured.", ephemeral=True)
         # One open ticket per user, preventing duplicate channels and spam.
@@ -88,6 +105,34 @@ async def setup_hook():
         await bot.tree.sync(guild=guild)
     else:
         await bot.tree.sync()
+
+@bot.tree.command(name="setup", description="Configure ESN Hosting Manager in Discord")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.describe(staff_role="Role that can access support tickets", ticket_category="Category for private tickets")
+async def setup(interaction: discord.Interaction, staff_role: discord.Role, ticket_category: discord.CategoryChannel):
+    if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+        return await interaction.response.send_message("Manage Server permission required.", ephemeral=True)
+    save_setting(interaction.guild.id, "staff_role", staff_role.id)
+    save_setting(interaction.guild.id, "ticket_category", ticket_category.id)
+    await interaction.response.send_message(
+        f"**Manager configured!**\\nStaff role: {staff_role.mention}\\nTicket category: {ticket_category.name}\\nSettings survive restarts.",
+        ephemeral=True,
+    )
+
+@bot.tree.command(name="settings", description="View ESN Hosting Manager configuration")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_guild=True)
+async def settings(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+        return await interaction.response.send_message("Manage Server permission required.", ephemeral=True)
+    guild = interaction.guild
+    staff = guild.get_role(setting(guild.id, "staff_role", STAFF_ROLE_ID))
+    category = guild.get_channel(setting(guild.id, "ticket_category", TICKET_CATEGORY_ID))
+    await interaction.response.send_message(
+        f"**ESN Hosting Manager Settings**\\nStaff: {staff.mention if staff else 'Not configured'}\\nTickets: {category.name if category else 'Not configured'}",
+        ephemeral=True,
+    )
 
 @bot.tree.command(name="hosting", description="View ESN Hosting Manager information")
 async def hosting(interaction: discord.Interaction):
