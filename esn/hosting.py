@@ -38,8 +38,8 @@ class Hosting(commands.Cog):
             attrs=payload.get("attributes",{})
             resources=attrs.get("resources",{})
             await interaction.followup.send(
-                f"**Server:** \`{sid}\`\\n**State:** {attrs.get('current_state','unknown')}\\n"
-                f"**RAM:** {resources.get('memory_bytes',0)//1048576} MiB\\n"
+                f"**Server:** \`{sid}\`\n**State:** {attrs.get('current_state','unknown')}\n"
+                f"**RAM:** {resources.get('memory_bytes',0)//1048576} MiB\n"
                 f"**Disk:** {resources.get('disk_bytes',0)//1048576} MiB",
                 ephemeral=True)
         except (aiohttp.ClientError,TimeoutError,ValueError):
