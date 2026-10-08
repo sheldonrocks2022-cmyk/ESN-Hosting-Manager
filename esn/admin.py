@@ -40,4 +40,13 @@ class Admin(commands.Cog):
         rows=[f"**{name}:** {config.get(interaction.guild.id,name,'Not set')}" for name in names]
         await interaction.response.send_message("**ESN Hosting Manager**\n"+"\n".join(rows)+"\nUse /configure to change settings.",ephemeral=True)
 
+
+    @app_commands.command(name="ownerstatus",description="Check whether your Discord account is configured as ESN owner")
+    @app_commands.guild_only()
+    async def ownerstatus(self, interaction:discord.Interaction):
+        await interaction.response.send_message(
+            "You are the configured ESN owner." if config.owner_allowed(interaction.user)
+            else "Your Discord ID is not the configured owner. Set OWNER_DISCORD_ID in the server .env to your numeric Discord User ID, then restart.",
+            ephemeral=True)
+
 async def setup(bot): await bot.add_cog(Admin(bot))
