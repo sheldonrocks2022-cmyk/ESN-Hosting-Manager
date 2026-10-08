@@ -8,7 +8,8 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
-load_dotenv()\nload_dotenv(Path(__file__).resolve().parent.parent / '.env')
+load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 logging.basicConfig(level=logging.INFO)
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID") or "0")
