@@ -122,7 +122,7 @@ async def setup(interaction: discord.Interaction, staff_role: discord.Role, tick
     config.put(interaction.guild.id, "staff_role", staff_role.id)
     config.put(interaction.guild.id, "ticket_category", ticket_category.id)
     await interaction.response.send_message(
-        f"**Manager configured!**\\nStaff role: {staff_role.mention}\\nTicket category: {ticket_category.name}\\nSettings survive restarts.",
+        f"**Manager configured!**\nStaff role: {staff_role.mention}\nTicket category: {ticket_category.name}\\nSettings survive restarts.",
         ephemeral=True,
     )
 
@@ -136,7 +136,7 @@ async def settings(interaction: discord.Interaction):
     staff = guild.get_role(setting(guild.id, "staff_role", STAFF_ROLE_ID))
     category = guild.get_channel(setting(guild.id, "ticket_category", TICKET_CATEGORY_ID))
     await interaction.response.send_message(
-        f"**ESN Hosting Manager Settings**\\nStaff: {staff.mention if staff else 'Not configured'}\\nTickets: {category.name if category else 'Not configured'}",
+        f"**ESN Hosting Manager Settings**\nStaff: {staff.mention if staff else 'Not configured'}\nTickets: {category.name if category else 'Not configured'}",
         ephemeral=True,
     )
 
