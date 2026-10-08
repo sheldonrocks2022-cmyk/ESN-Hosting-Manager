@@ -1,0 +1,18 @@
+name: Python checks
+on:
+  push:
+  pull_request:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check Python syntax
+        run: python -m compileall -q main.py esn
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Import extension modules
+        run: python -c "import esn.admin, esn.security, esn.trials, esn.hosting, esn.tickets, esn.operations, esn.commerce"
