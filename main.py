@@ -98,6 +98,8 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
+    for extension in ('esn.admin', 'esn.security', 'esn.trials'):
+        await bot.load_extension(extension)
     bot.add_view(TicketPanel())
     if GUILD_ID:
         guild = discord.Object(id=GUILD_ID)
