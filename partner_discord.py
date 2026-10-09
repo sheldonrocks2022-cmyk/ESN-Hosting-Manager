@@ -6,6 +6,7 @@ Requires discord.py>=2.3. Never expose settlement to non-owner accounts.
 import discord
 from discord import app_commands
 from partner_permissions import require_owner, review_partner, settle_commission
+from partner_approvals import notify_owner, decide
 
 BRAND = 0x5865F2
 
@@ -38,9 +39,10 @@ class PartnerGroup(app_commands.Group):
     async def apply(self, interaction: discord.Interaction):
         try:
             code = self.program.apply(str(interaction.user.id))
+            notified = await notify_owner(interaction.client, self.program, interaction.user, interaction.guild)
             await self.send(interaction,"Application received",
                             "Your application is **pending owner approval**.\n"
-                            f"Your private referral code: `{code}`")
+                            f"Your private referral code: `{code}`\n" + ("Owner notified by DM." if notified else "Owner DM unavailable; application saved."))
         except Exception:
             await self.send(interaction,"Application already exists",
                             "You may already have an application. Use /partner stats.",error=True)
@@ -62,8 +64,8 @@ class PartnerGroup(app_commands.Group):
     async def approve(self, interaction: discord.Interaction, member: discord.User):
         try:
             require_owner(interaction.user.id)
-            review_partner(self.program, interaction.user.id, member.id, "approved")
-            await self.send(interaction,"Partner approved",f"{member.mention} is now approved.")
+            notified = await decide(interaction.client, self.program, interaction.user.id, member.id, "approved", interaction.guild)
+            await self.send(interaction,"Partner approved",f"{member.mention} is now approved." + ("" if notified else " Applicant DM could not be delivered."))
         except PermissionError:
             await self.send(interaction,"Access denied","Only the ESN owner can approve partners.",error=True)
         except ValueError as exc:
@@ -73,8 +75,8 @@ class PartnerGroup(app_commands.Group):
     async def reject(self, interaction: discord.Interaction, member: discord.User):
         try:
             require_owner(interaction.user.id)
-            review_partner(self.program, interaction.user.id, member.id, "rejected")
-            await self.send(interaction,"Partner rejected",f"{member.mention}'s application was rejected.")
+            notified = await decide(interaction.client, self.program, interaction.user.id, member.id, "rejected", interaction.guild)
+            await self.send(interaction,"Partner rejected",f"{member.mention}'s application was rejected." + ("" if notified else " Applicant DM could not be delivered."))
         except PermissionError:
             await self.send(interaction,"Access denied","Owner only.",error=True)
         except ValueError as exc:
