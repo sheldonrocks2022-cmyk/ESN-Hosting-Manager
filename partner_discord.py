@@ -114,3 +114,14 @@ class PartnerGroup(app_commands.Group):
             f"• <@{discord_id}> — {created_at[:10]}" for discord_id, created_at in rows
         )
         await self.send(interaction, "Pending applications", description)
+
+    @app_commands.command(name="link", description="Get your official ESN Starter referral link")
+    async def link(self, interaction: discord.Interaction):
+        s = self.program.stats(str(interaction.user.id))
+        if not s or s["status"] != "approved":
+            return await self.send(interaction, "Not approved", "Apply with /partner apply and wait for owner approval.", error=True)
+        from urllib.parse import urlencode
+        url = "https://buy.stripe.com/9B628scRZ2jZ9Nl5pZdnW04?" + urlencode({"client_reference_id": s["code"]})
+        await self.send(interaction, "Your ESN Starter referral link",
+                        f"Share this link for the monthly Starter plan:\n{url}\n\n"
+                        "Commissions are recorded only for eligible first-time paid subscriptions.")
