@@ -1,5 +1,6 @@
 """ESN Hosting Manager MAX — initial functional foundation."""
 import os
+import asyncio
 import logging
 import sqlite3
 from pathlib import Path
@@ -105,13 +106,13 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
-    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce'):
+    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce', 'esn.premium_center', 'esn.billing_center'):
         await bot.load_extension(extension)
     bot.add_view(TicketPanel())
     bot.tree.add_command(PartnerGroup(partner_program))
     register_pending_views(bot, partner_program)
     if os.getenv("STRIPE_POLLING_ENABLED") == "1":
-        bot.loop.create_task(polling_loop(partner_program))
+        asyncio.create_task(polling_loop(partner_program))
     logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
     if GUILD_ID:
         guild = discord.Object(id=GUILD_ID)
