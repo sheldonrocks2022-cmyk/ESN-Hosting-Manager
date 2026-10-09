@@ -8,6 +8,7 @@ import logging
 import discord
 from discord.ext import commands
 from partner_program import PartnerProgram
+from partner_approvals import register_pending_views
 from partner_discord import PartnerGroup, premium
 from stripe_polling import polling_loop
 
@@ -23,6 +24,7 @@ async def on_ready():
 @bot.event
 async def setup_hook():
     bot.tree.add_command(PartnerGroup(program))
+    register_pending_views(bot, program)
     if os.getenv("STRIPE_POLLING_ENABLED") == "1":
         bot.loop.create_task(polling_loop(program))
     guild_id = os.environ.get("TEST_GUILD_ID")
