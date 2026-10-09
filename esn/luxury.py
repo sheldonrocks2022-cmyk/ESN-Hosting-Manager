@@ -26,10 +26,18 @@ async def luxury_send(interaction, content=None, *, embed=None, embeds=None, **k
             "permission", "denied", "not your", "staff only", "failed", "error"))
         embed = luxury_embed(interaction, content, error=error)
         content = None
-    return await interaction.response.send_message(content=content, embed=embed, embeds=embeds, **kwargs)
+    payload = dict(kwargs)
+    if content is not None: payload["content"] = content
+    if embed is not None: payload["embed"] = embed
+    if embeds is not None: payload["embeds"] = embeds
+    return await interaction.response.send_message(**payload)
 
 async def luxury_followup(interaction, content=None, *, embed=None, embeds=None, **kwargs):
     if content is not None and embed is None and embeds is None:
         embed = luxury_embed(interaction, content)
         content = None
-    return await interaction.followup.send(content=content, embed=embed, embeds=embeds, **kwargs)
+    payload = dict(kwargs)
+    if content is not None: payload["content"] = content
+    if embed is not None: payload["embed"] = embed
+    if embeds is not None: payload["embeds"] = embeds
+    return await interaction.followup.send(**payload)
