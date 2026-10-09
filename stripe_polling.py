@@ -24,14 +24,16 @@ def poll_starter(program, payment_link_id):
         if not code or not customer or not subscription_id:
             counts["skipped"] += 1
             continue
-        subscription = stripe.Subscription.retrieve(subscription_id)
-        # Only the first invoice, not the latest renewal, qualifies.
-        # Retrieve the invoice collection for the subscription in chronological order.
-        first_invoice = None
-        for invoice in stripe.Invoice.list(subscription=subscription_id, limit=100).auto_paging_iter():
-            if invoice.get("billing_reason") == "subscription_create":
-                first_invoice = invoice
-                break
+        # Stripe Checkout supplies the first invoice ID for subscription mode.
+        # Never use latest_invoice: that becomes a renewal after month one.
+        initial_invoice_id = session.get("invoice")
+        first_invoice = stripe.Invoice.retrieve(initial_invoice_id) if initial_invoice_id else None
+        if first_invoice and first_invoice.get("subscription") != subscription_id:
+            counts["skipped"] += 1
+            continue
+        if first_invoice and first_invoice.get("billing_reason") != "subscription_create":
+            counts["skipped"] += 1
+            continue
         if not first_invoice or first_invoice.get("status") != "paid":
             counts["skipped"] += 1
             continue
