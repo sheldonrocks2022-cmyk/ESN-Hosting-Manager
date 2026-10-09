@@ -59,7 +59,7 @@ async def polling_loop(program):
             result = await asyncio.to_thread(
                 poll_starter,
                 PartnerProgram(os.getenv("PARTNER_DB_PATH", "partners.sqlite3")),
-                os.getenv("STRIPE_STARTER_PAYMENT_LINK_ID", ""))
+                os.getenv("STRIPE_STARTER_PAYMENT_LINK_ID", "plink_1UOjcEISwShswuKduU8hdd11"))
             log.info("Stripe subscription polling: %s", result)
         except Exception:
             log.exception("Stripe subscription polling failed")
