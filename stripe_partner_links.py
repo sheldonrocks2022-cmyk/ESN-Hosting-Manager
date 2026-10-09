@@ -16,7 +16,7 @@ app = Flask(__name__)
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 program = PartnerProgram(os.environ.get("PARTNER_DB_PATH", "partners.sqlite3"))
 CODE = re.compile(r"^[A-Z0-9]{8,32}$")
-LINKS = {}  # Fill with official Stripe Payment Link URLs, e.g. {"starter":"https://buy.stripe.com/..."}
+LINKS = {"starter": "https://buy.stripe.com/9B628scRZ2jZ9Nl5pZdnW04"}  # Official Starter Payment Link
 
 def payment_link_with_referral(url, code):
     parsed = urlsplit(url)
