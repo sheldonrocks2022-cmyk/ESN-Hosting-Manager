@@ -37,6 +37,9 @@ class PartnerGroup(app_commands.Group):
 
     @app_commands.command(name="apply", description="Apply to join the ESN partner network")
     async def apply(self, interaction: discord.Interaction):
+        from esn import config
+        if interaction.guild and config.get(interaction.guild.id,'owner_lockdown','0') == '1':
+            return await self.send(interaction,'Applications paused','The ESN owner has temporarily paused new partner applications.',error=True)
         try:
             code = self.program.apply(str(interaction.user.id))
             notified = await notify_owner(interaction.client, self.program, interaction.user, interaction.guild)
