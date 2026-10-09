@@ -9,6 +9,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from esn.luxury import luxury_send, luxury_followup, luxury_embed
 from partner_program import PartnerProgram
+from partner_approvals import register_pending_views
 from partner_discord import PartnerGroup
 from stripe_polling import polling_loop
 
@@ -108,6 +109,7 @@ async def setup_hook():
         await bot.load_extension(extension)
     bot.add_view(TicketPanel())
     bot.tree.add_command(PartnerGroup(partner_program))
+    register_pending_views(bot, partner_program)
     if os.getenv("STRIPE_POLLING_ENABLED") == "1":
         bot.loop.create_task(polling_loop(partner_program))
     logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
