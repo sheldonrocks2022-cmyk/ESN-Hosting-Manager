@@ -109,5 +109,35 @@ class PremiumCenter(commands.Cog):
         msg="\n".join(f"**{kind}** · `{actor}` · {stamp}" for kind,actor,stamp in rows) or "No audit events recorded."
         await luxury_send(interaction,msg,ephemeral=True)
 
+
+    @app_commands.command(name="nodehealth",description="Owner: check configured hosting panel API reachability")
+    @app_commands.guild_only()
+    async def nodehealth(self,interaction:discord.Interaction):
+        try: require_owner(interaction.user.id)
+        except PermissionError: return await luxury_send(interaction,"Owner access required.",ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        from .operations import request
+        import aiohttp
+        try:
+            payload=await request("GET","/api/client")
+            await luxury_followup(interaction,
+                "**Panel API:** Reachable\\n**Authentication:** Successful\\n"
+                "This does not confirm individual node health, capacity, or server uptime.",ephemeral=True)
+        except (RuntimeError,aiohttp.ClientError,TimeoutError):
+            await luxury_followup(interaction,
+                "**Panel API:** Unavailable or not configured. Check credentials, panel connectivity, and server logs.",ephemeral=True)
+
+    @app_commands.command(name="partnersuspend",description="Owner: suspend an approved partner")
+    @app_commands.guild_only()
+    async def partnersuspend(self,interaction:discord.Interaction,member:discord.User):
+        try: require_owner(interaction.user.id)
+        except PermissionError: return await luxury_send(interaction,"Owner access required.",ephemeral=True)
+        program=ledger()
+        try:
+            program.review(member.id,"suspended",actor=str(interaction.user.id))
+        except ValueError:
+            return await luxury_send(interaction,"Partner not found.",ephemeral=True)
+        await luxury_send(interaction,f"Partner <@{member.id}> has been suspended. Future referral payments will not qualify while suspended.",ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(PremiumCenter(bot))
