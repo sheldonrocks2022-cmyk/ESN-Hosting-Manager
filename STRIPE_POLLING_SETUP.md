@@ -1,23 +1,36 @@
-# ESN Starter Stripe polling (no Cloudflare)
+# ESN Hosting Starter Partner Program — one-node deployment
 
-This is a development integration, not yet deployed. Only the Starter plan is included.
+**Development code only. Not yet tested or deployed. No Cloudflare.**
 
-1. Install `pip install stripe discord.py` on the existing Python hosting node.
-2. In the hosting panel's private environment settings set:
-   - `STRIPE_SECRET_KEY`: your Stripe restricted secret key with permission to read Checkout Sessions.
-   - `STRIPE_STARTER_PAYMENT_LINK_ID`: the actual `plink_...` ID for the existing Starter Payment Link (find in Stripe dashboard). This is not the buy.stripe.com URL.
-   - `STRIPE_POLLING_ENABLED=1` after completing test checks.
-   - `PARTNER_DB_PATH`: persistent local database path, shared by the bot and polling task.
-3. The partner redirect `/ref/CODE/starter` still requires an HTTP server, but you can instead construct the partner-specific Stripe URL `https://buy.stripe.com/9B628scRZ2jZ9Nl5pZdnW04?client_reference_id=CODE` inside a bot command. A direct URL alone is not secure attribution; a customer can modify the code.
-4. Poller checks paid, one-time sessions only. Subscription checkouts are intentionally skipped.
-5. Confirm test-mode Checkout Sessions with a test-mode Starter Payment Link before enabling real payments. Do not paste Stripe secret keys into Discord or GitHub.
+## Environment variables (set privately in your ESN Hosting panel)
 
-## Production blockers
-- Add bot-side referral link command and robust identity attribution / self-referral controls.
-- Validate actual Stripe Payment Link ID and whether Starter is subscription-mode.
-- Handle refunds and disputes before payouts; ensure tax and discount calculation policy.
-- Add reconciliation, pagination performance limits, rate limiting, monitoring, and integration tests.
-- Only Kavero's owner ID may authorize manual payout state transitions.
-- The current Stripe poller scans all sessions for the configured link each cycle; optimize incremental scans as volume grows.
+```env
+DISCORD_BOT_TOKEN=<your existing bot token>
+STRIPE_SECRET_KEY=<your Stripe restricted secret key>
+STRIPE_STARTER_PAYMENT_LINK_ID=plink_1UOjcEISwShswuKduU8hdd11
+STRIPE_POLLING_ENABLED=1
+PARTNER_DB_PATH=partners.sqlite3
+```
 
-Cloudflare is not required or used by this polling path.
+Never publish Stripe or Discord tokens. The Starter link is a monthly subscription. The poller records a commission only when Stripe confirms that the **initial subscription invoice** is paid, not for monthly renewals. Only approved partners qualify.
+
+## Start
+
+Install `pip install -r requirements-partner.txt` and start `python partner_bot.py` on the **existing node**. This file starts a standalone Discord bot. If your ESN Hosting Manager already has a bot process, integrate the PartnerGroup and polling_loop into that existing process instead of starting a second client using the same token. Keep the SQLite database on persistent storage.
+
+## Discord commands
+
+`/partner apply`, `/partner stats`, `/partner link`, `/partner pending`, `/partner approve`, `/partner reject`, `/partner payout`.
+
+Owner-only actions check Discord ID `1515077206886453469`. All partner responses use guild-icon embeds where available. Payout commands update the ledger only; they never transfer funds.
+
+## Before accepting production partner sales
+
+- Verify Stripe restricted-key permissions, correct Payment Link ID, initial-invoice fields and test-mode behavior.
+- Test full checkout, attribution, duplicate delivery, first invoice and renewals. No tests have been run in this chat.
+- Add refund/dispute reconciliation and stronger self-referral prevention before authorizing payouts.
+- The polling implementation scans Checkout Sessions repeatedly; optimize pagination for high volume.
+- Ensure the Stripe Checkout Session retains the referral code through `client_reference_id`.
+- Merge the development PR only after testing and confirming that the integration does not conflict with your live bot.
+
+No extra hosting provider is needed for the polling approach.
