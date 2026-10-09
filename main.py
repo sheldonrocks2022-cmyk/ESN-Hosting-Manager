@@ -7,11 +7,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+from partner_program import PartnerProgram
+from partner_discord import PartnerGroup
+from stripe_polling import polling_loop
 
 load_dotenv()
 load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 logging.basicConfig(level=logging.INFO)
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID") or "0")
 STAFF_ROLE_ID = int(os.getenv("STAFF_ROLE_ID") or "0")
 TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID") or "0")
@@ -29,6 +32,7 @@ def save_setting(guild_id: int, name: str, value: int) -> None:
     DB.commit()
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
+partner_program = PartnerProgram(os.getenv("PARTNER_DB_PATH", "data/partners.sqlite3"))
 
 def is_staff(member: discord.Member) -> bool:
     role_id = setting(member.guild.id, 'staff_role', STAFF_ROLE_ID)
@@ -102,6 +106,9 @@ async def setup_hook():
     for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce'):
         await bot.load_extension(extension)
     bot.add_view(TicketPanel())
+    bot.tree.add_command(PartnerGroup(partner_program))
+    if os.getenv("STRIPE_POLLING_ENABLED") == "1":
+        bot.loop.create_task(polling_loop(partner_program))
     logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
     if GUILD_ID:
         guild = discord.Object(id=GUILD_ID)
@@ -126,6 +133,25 @@ async def setup(interaction: discord.Interaction, staff_role: discord.Role, tick
         f"**Manager configured!**\nStaff role: {staff_role.mention}\nTicket category: {ticket_category.name}\\nSettings survive restarts.",
         ephemeral=True,
     )
+
+@bot.tree.command(name="ticketcategory", description="Set the category where support tickets are created")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.describe(category="Discord category for new support tickets")
+async def ticketcategory(interaction: discord.Interaction, category: discord.CategoryChannel):
+    if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+        return await interaction.response.send_message("Manage Server permission required.", ephemeral=True)
+    save_setting(interaction.guild.id, "ticket_category", category.id)
+    from esn import config
+    config.put(interaction.guild.id, "ticket_category", category.id)
+    embed = discord.Embed(title="ESN Hosting • Ticket Settings",
+                          description=f"New support tickets will be created in **{category.name}**.\\nThis setting survives restarts.",
+                          color=discord.Color.blurple())
+    if interaction.guild.icon:
+        embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon.url)
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+        embed.set_footer(text="ESN Hosting Manager", icon_url=interaction.guild.icon.url)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="settings", description="View ESN Hosting Manager configuration")
 @app_commands.guild_only()
