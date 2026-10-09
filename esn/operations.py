@@ -1,3 +1,4 @@
+from .luxury import luxury_send, luxury_followup
 """Safe Pterodactyl client actions and operational tooling."""
 import os
 import aiohttp
@@ -28,34 +29,34 @@ class Operations(commands.Cog):
     @app_commands.choices(action=[app_commands.Choice(name=a,value=a) for a in ("start","stop","restart")])
     async def serverpower(self,interaction:discord.Interaction,action:app_commands.Choice[str]):
         sid=config.get(interaction.guild.id,f"server:{interaction.user.id}")
-        if not sid: return await interaction.response.send_message("Ask staff to link your hosting server first.",ephemeral=True)
+        if not sid: return await luxury_send(interaction, "Ask staff to link your hosting server first.",ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         try:
             await request("POST",f"/api/client/servers/{sid}/power",{"signal":action.value})
-            await interaction.followup.send(f"Sent **{action.value}** to your linked server.",ephemeral=True)
+            await luxury_followup(interaction, f"Sent **{action.value}** to your linked server.",ephemeral=True)
         except (RuntimeError,aiohttp.ClientError,TimeoutError) as exc:
-            await interaction.followup.send(f"Could not complete request: {exc}",ephemeral=True)
+            await luxury_followup(interaction, f"Could not complete request: {exc}",ephemeral=True)
 
     @app_commands.command(name="backupcreate",description="Request a backup of your linked server")
     @app_commands.guild_only()
     async def backupcreate(self,interaction:discord.Interaction):
         sid=config.get(interaction.guild.id,f"server:{interaction.user.id}")
-        if not sid: return await interaction.response.send_message("No linked server.",ephemeral=True)
+        if not sid: return await luxury_send(interaction, "No linked server.",ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         try:
             await request("POST",f"/api/client/servers/{sid}/backups",{})
-            await interaction.followup.send("Backup requested. Check the panel for completion.",ephemeral=True)
+            await luxury_followup(interaction, "Backup requested. Check the panel for completion.",ephemeral=True)
         except (RuntimeError,aiohttp.ClientError,TimeoutError) as exc:
-            await interaction.followup.send(f"Backup request failed: {exc}",ephemeral=True)
+            await luxury_followup(interaction, f"Backup request failed: {exc}",ephemeral=True)
 
     @app_commands.command(name="monitor",description="Enable or disable periodic node/API reachability alerts")
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
     async def monitor_command(self,interaction:discord.Interaction,enabled:bool):
         if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("Manage Server required.",ephemeral=True)
+            return await luxury_send(interaction, "Manage Server required.",ephemeral=True)
         config.put(interaction.guild.id,"monitor_enabled",int(enabled))
-        await interaction.response.send_message(f"API monitor {'enabled' if enabled else 'disabled'}. Checks every 5 minutes.",ephemeral=True)
+        await luxury_send(interaction, f"API monitor {'enabled' if enabled else 'disabled'}. Checks every 5 minutes.",ephemeral=True)
 
     @tasks.loop(minutes=5)
     async def monitor(self):
