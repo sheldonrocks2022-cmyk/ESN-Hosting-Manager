@@ -1,3 +1,4 @@
+from .luxury import luxury_send, luxury_followup
 """Honeypot audit monitoring and opt-in punishment with conservative attribution."""
 import asyncio
 import os
@@ -89,21 +90,21 @@ class Security(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def security(self,interaction:discord.Interaction,enabled:bool):
         if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("Manage Server required.",ephemeral=True)
+            return await luxury_send(interaction, "Manage Server required.",ephemeral=True)
         config.put(interaction.guild.id,"security_enabled",int(enabled))
-        await interaction.response.send_message(f"Security monitoring {'enabled' if enabled else 'disabled'}.",ephemeral=True)
+        await luxury_send(interaction, f"Security monitoring {'enabled' if enabled else 'disabled'}.",ephemeral=True)
 
     @app_commands.command(name="honeypot",description="Select a decoy channel and enable or disable the honeypot")
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
     async def honeypot(self,interaction:discord.Interaction,enabled:bool,decoy_channel:discord.TextChannel|None=None):
         if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("Manage Server required.",ephemeral=True)
+            return await luxury_send(interaction, "Manage Server required.",ephemeral=True)
         if enabled and not (decoy_channel or config.get(interaction.guild.id,"honeypot_channel")):
-            return await interaction.response.send_message("Choose a decoy channel.",ephemeral=True)
+            return await luxury_send(interaction, "Choose a decoy channel.",ephemeral=True)
         if decoy_channel: config.put(interaction.guild.id,"honeypot_channel",decoy_channel.id)
         config.put(interaction.guild.id,"honeypot_enabled",int(enabled))
-        await interaction.response.send_message(f"Honeypot {'enabled' if enabled else 'disabled'}. Mode: {config.get(interaction.guild.id,'honeypot_mode','alert')}.",ephemeral=True)
+        await luxury_send(interaction, f"Honeypot {'enabled' if enabled else 'disabled'}. Mode: {config.get(interaction.guild.id,'honeypot_mode','alert')}.",ephemeral=True)
 
     @app_commands.command(name="honeypotmode",description="Choose alert timeout kick or ban for verified decoy tampering")
     @app_commands.guild_only()
@@ -111,11 +112,11 @@ class Security(commands.Cog):
     @app_commands.choices(mode=CHOICES)
     async def honeypotmode(self,interaction:discord.Interaction,mode:app_commands.Choice[str]):
         if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("Manage Server required.",ephemeral=True)
+            return await luxury_send(interaction, "Manage Server required.",ephemeral=True)
         if mode.value!="alert" and not config.owner_allowed(interaction.user):
-            return await interaction.response.send_message("Only the configured ESN owner may enable automatic punishment.",ephemeral=True)
+            return await luxury_send(interaction, "Only the configured ESN owner may enable automatic punishment.",ephemeral=True)
         config.put(interaction.guild.id,"honeypot_mode",mode.value)
-        await interaction.response.send_message(
+        await luxury_send(interaction, 
             f"Honeypot mode: **{mode.value}**. Requires /security enabled, /honeypot enabled, View Audit Log, and appropriate moderation permissions. Owners, administrators and configured staff are exempt.",
             ephemeral=True)
 
@@ -123,10 +124,10 @@ class Security(commands.Cog):
     @app_commands.guild_only()
     async def honeypotstatus(self,interaction:discord.Interaction):
         if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("Manage Server required.",ephemeral=True)
+            return await luxury_send(interaction, "Manage Server required.",ephemeral=True)
         guild=interaction.guild
         channel=guild.get_channel(int(config.get(guild.id,"honeypot_channel","0")))
-        await interaction.response.send_message(
+        await luxury_send(interaction, 
             f"**Honeypot**\nSecurity: {config.get(guild.id,'security_enabled','0')}\nEnabled: {config.get(guild.id,'honeypot_enabled','0')}\n"
             f"Channel: {channel.mention if channel else 'Not selected'}\nAction: {config.get(guild.id,'honeypot_mode','alert')}",
             ephemeral=True)
@@ -136,9 +137,9 @@ class Security(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def securitylogs(self,interaction:discord.Interaction):
         if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("Manage Server required.",ephemeral=True)
+            return await luxury_send(interaction, "Manage Server required.",ephemeral=True)
         rows=config.db.execute("SELECT created_at,kind,detail FROM incidents WHERE guild=? ORDER BY id DESC LIMIT 8",(interaction.guild.id,)).fetchall()
         lines=[f"`{date}` **{kind}** {detail[:80]}" for date,kind,detail in rows]
-        await interaction.response.send_message("\n".join(lines)[:1900] if lines else "No incidents recorded.",ephemeral=True)
+        await luxury_send(interaction, "\n".join(lines)[:1900] if lines else "No incidents recorded.",ephemeral=True)
 
 async def setup(bot): await bot.add_cog(Security(bot))

@@ -1,5 +1,6 @@
 """ESN Hosting Manager MAX — initial functional foundation."""
 import os
+import asyncio
 import logging
 import sqlite3
 from pathlib import Path
@@ -7,11 +8,16 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+from esn.luxury import luxury_send, luxury_followup, luxury_embed
+from partner_program import PartnerProgram
+from partner_approvals import register_pending_views
+from partner_discord import PartnerGroup
+from stripe_polling import polling_loop
 
 load_dotenv()
 load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 logging.basicConfig(level=logging.INFO)
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID") or "0")
 STAFF_ROLE_ID = int(os.getenv("STAFF_ROLE_ID") or "0")
 TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID") or "0")
@@ -29,6 +35,7 @@ def save_setting(guild_id: int, name: str, value: int) -> None:
     DB.commit()
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
+partner_program = PartnerProgram(os.getenv("PARTNER_DB_PATH", "data/partners.sqlite3"))
 
 def is_staff(member: discord.Member) -> bool:
     role_id = setting(member.guild.id, 'staff_role', STAFF_ROLE_ID)
@@ -48,21 +55,21 @@ class TicketSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         guild = interaction.guild
         if guild is None or not isinstance(interaction.user, discord.Member):
-            return await interaction.response.send_message("Use this panel in a server.", ephemeral=True)
+            return await luxury_send(interaction, "Use this panel in a server.", ephemeral=True)
         category_id = setting(guild.id, "ticket_category", TICKET_CATEGORY_ID)
         if not category_id:
-            return await interaction.response.send_message("Ticket category is not configured.", ephemeral=True)
+            return await luxury_send(interaction, "Ticket category is not configured.", ephemeral=True)
         category = guild.get_channel(category_id)
         if not isinstance(category, discord.CategoryChannel):
-            return await interaction.response.send_message("Configured ticket category was not found.", ephemeral=True)
+            return await luxury_send(interaction, "Configured ticket category was not found.", ephemeral=True)
         staff_id = setting(guild.id, "staff_role", STAFF_ROLE_ID)
         staff_role = guild.get_role(staff_id) if staff_id else None
         if staff_role is None:
-            return await interaction.response.send_message("Staff role is not configured.", ephemeral=True)
+            return await luxury_send(interaction, "Staff role is not configured.", ephemeral=True)
         # One open ticket per user, preventing duplicate channels and spam.
         for channel in category.text_channels:
             if channel.topic == f"esnhm-owner:{interaction.user.id}":
-                return await interaction.response.send_message(f"You already have a ticket: {channel.mention}", ephemeral=True)
+                return await luxury_send(interaction, f"You already have a ticket: {channel.mention}", ephemeral=True)
         await interaction.response.defer(ephemeral=True, thinking=True)
         perms = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -84,9 +91,9 @@ class TicketSelect(discord.ui.Select):
                 "Explain what you need help with. Staff can close this using `/ticketclose`.",
                 allowed_mentions=discord.AllowedMentions(users=True, roles=True),
             )
-            await interaction.followup.send(f"Ticket created: {channel.mention}", ephemeral=True)
+            await luxury_followup(interaction, f"Ticket created: {channel.mention}", ephemeral=True)
         except discord.Forbidden:
-            await interaction.followup.send("I need Manage Channels and permission to view the ticket category.", ephemeral=True)
+            await luxury_followup(interaction, "I need Manage Channels and permission to view the ticket category.", ephemeral=True)
 
 class TicketPanel(discord.ui.View):
     def __init__(self):
@@ -99,9 +106,13 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
-    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce'):
+    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce', 'esn.premium_center', 'esn.billing_center', 'esn.max_systems', 'esn.partner_forms', 'esn.staff_notes', 'esn.payout_center', 'esn.autopilot'):
         await bot.load_extension(extension)
     bot.add_view(TicketPanel())
+    bot.tree.add_command(PartnerGroup(partner_program))
+    register_pending_views(bot, partner_program)
+    if os.getenv("STRIPE_POLLING_ENABLED") == "1":
+        asyncio.create_task(polling_loop(partner_program))
     logging.info("Loaded %s slash commands before sync", len(bot.tree.get_commands()))
     if GUILD_ID:
         guild = discord.Object(id=GUILD_ID)
@@ -116,34 +127,53 @@ async def setup_hook():
 @app_commands.describe(staff_role="Role that can access support tickets", ticket_category="Category for private tickets")
 async def setup(interaction: discord.Interaction, staff_role: discord.Role, ticket_category: discord.CategoryChannel):
     if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
-        return await interaction.response.send_message("Manage Server permission required.", ephemeral=True)
+        return await luxury_send(interaction, "Manage Server permission required.", ephemeral=True)
     save_setting(interaction.guild.id, "staff_role", staff_role.id)
     save_setting(interaction.guild.id, "ticket_category", ticket_category.id)
     from esn import config
     config.put(interaction.guild.id, "staff_role", staff_role.id)
     config.put(interaction.guild.id, "ticket_category", ticket_category.id)
-    await interaction.response.send_message(
+    await luxury_send(interaction, 
         f"**Manager configured!**\nStaff role: {staff_role.mention}\nTicket category: {ticket_category.name}\\nSettings survive restarts.",
         ephemeral=True,
     )
+
+@bot.tree.command(name="ticketcategory", description="Set the category where support tickets are created")
+@app_commands.guild_only()
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.describe(category="Discord category for new support tickets")
+async def ticketcategory(interaction: discord.Interaction, category: discord.CategoryChannel):
+    if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+        return await luxury_send(interaction, "Manage Server permission required.", ephemeral=True)
+    save_setting(interaction.guild.id, "ticket_category", category.id)
+    from esn import config
+    config.put(interaction.guild.id, "ticket_category", category.id)
+    embed = discord.Embed(title="ESN Hosting • Ticket Settings",
+                          description=f"New support tickets will be created in **{category.name}**.\\nThis setting survives restarts.",
+                          color=discord.Color.blurple())
+    if interaction.guild.icon:
+        embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon.url)
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+        embed.set_footer(text="ESN Hosting Manager", icon_url=interaction.guild.icon.url)
+    await luxury_send(interaction, embed=embed, ephemeral=True)
 
 @bot.tree.command(name="settings", description="View ESN Hosting Manager configuration")
 @app_commands.guild_only()
 @app_commands.default_permissions(manage_guild=True)
 async def settings(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
-        return await interaction.response.send_message("Manage Server permission required.", ephemeral=True)
+        return await luxury_send(interaction, "Manage Server permission required.", ephemeral=True)
     guild = interaction.guild
     staff = guild.get_role(setting(guild.id, "staff_role", STAFF_ROLE_ID))
     category = guild.get_channel(setting(guild.id, "ticket_category", TICKET_CATEGORY_ID))
-    await interaction.response.send_message(
+    await luxury_send(interaction, 
         f"**ESN Hosting Manager Settings**\nStaff: {staff.mention if staff else 'Not configured'}\nTickets: {category.name if category else 'Not configured'}",
         ephemeral=True,
     )
 
 @bot.tree.command(name="hosting", description="View ESN Hosting Manager information")
 async def hosting(interaction: discord.Interaction):
-    await interaction.response.send_message(
+    await luxury_send(interaction, 
         "**ESN Hosting Manager MAX**\n"
         "Use /ticketpanel for support (staff only). Hosting control and Guardian modules are being developed.",
         ephemeral=True,
@@ -153,14 +183,10 @@ async def hosting(interaction: discord.Interaction):
 @app_commands.guild_only()
 async def ticketpanel(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member) or not is_staff(interaction.user):
-        return await interaction.response.send_message("Staff only.", ephemeral=True)
-    await interaction.response.send_message("Ticket panel posted.", ephemeral=True)
+        return await luxury_send(interaction, "Staff only.", ephemeral=True)
+    await luxury_send(interaction, "Ticket panel posted.", ephemeral=True)
     await interaction.channel.send(
-        embed=discord.Embed(
-            title="🎟️ ESN Hosting Support",
-            description="Select a category below to open a private support ticket.",
-            color=discord.Color.from_rgb(0, 190, 220),
-        ),
+        embed=luxury_embed(interaction, "Choose the service you need below. Our support team will assist you in a private ticket.", title="ESN HOSTING  |  CONCIERGE SUPPORT"),
         view=TicketPanel(),
     )
 
@@ -169,12 +195,12 @@ async def ticketpanel(interaction: discord.Interaction):
 async def ticketclose(interaction: discord.Interaction):
     channel = interaction.channel
     if not isinstance(channel, discord.TextChannel) or not (channel.topic or "").startswith("esnhm-owner:"):
-        return await interaction.response.send_message("This isn't an ESN Hosting Manager ticket.", ephemeral=True)
+        return await luxury_send(interaction, "This isn't an ESN Hosting Manager ticket.", ephemeral=True)
     owner_id = int(channel.topic.split(":", 1)[1])
     member = interaction.user
     if not isinstance(member, discord.Member) or (member.id != owner_id and not is_staff(member)):
-        return await interaction.response.send_message("You cannot close this ticket.", ephemeral=True)
-    await interaction.response.send_message("Closing this ticket by archiving it. Staff can reopen it later.")
+        return await luxury_send(interaction, "You cannot close this ticket.", ephemeral=True)
+    await luxury_send(interaction, "Closing this ticket by archiving it. Staff can reopen it later.")
     await channel.edit(name=("archived-" + channel.name)[:100], topic=f"esnhm-archived:{owner_id}", reason=f"Ticket archived by {member.id}")
     await channel.set_permissions(member, send_messages=False) if member.id == owner_id else None
 
