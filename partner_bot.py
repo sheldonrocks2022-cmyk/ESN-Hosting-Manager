@@ -3,11 +3,13 @@ Requires discord.py>=2.3 and DISCORD_BOT_TOKEN in environment.
 Run: python partner_bot.py
 """
 import os
+import asyncio
 import logging
 import discord
 from discord.ext import commands
 from partner_program import PartnerProgram
 from partner_discord import PartnerGroup, premium
+from stripe_polling import polling_loop
 
 logging.basicConfig(level=logging.INFO)
 intents = discord.Intents.default()
@@ -21,6 +23,8 @@ async def on_ready():
 @bot.event
 async def setup_hook():
     bot.tree.add_command(PartnerGroup(program))
+    if os.getenv("STRIPE_POLLING_ENABLED") == "1":
+        bot.loop.create_task(polling_loop(program))
     guild_id = os.environ.get("TEST_GUILD_ID")
     if guild_id:
         guild = discord.Object(id=int(guild_id))
