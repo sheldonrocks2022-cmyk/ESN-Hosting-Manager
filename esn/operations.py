@@ -28,6 +28,8 @@ class Operations(commands.Cog):
     @app_commands.guild_only()
     @app_commands.choices(action=[app_commands.Choice(name=a,value=a) for a in ("start","stop","restart")])
     async def serverpower(self,interaction:discord.Interaction,action:app_commands.Choice[str]):
+        if config.get(interaction.guild.id,"owner_lockdown","0")=="1":
+            return await luxury_send(interaction,"Sensitive server controls are paused by the ESN owner.",ephemeral=True)
         sid=config.get(interaction.guild.id,f"server:{interaction.user.id}")
         if not sid: return await luxury_send(interaction, "Ask staff to link your hosting server first.",ephemeral=True)
         await interaction.response.defer(ephemeral=True)
@@ -40,6 +42,8 @@ class Operations(commands.Cog):
     @app_commands.command(name="backupcreate",description="Request a backup of your linked server")
     @app_commands.guild_only()
     async def backupcreate(self,interaction:discord.Interaction):
+        if config.get(interaction.guild.id,"owner_lockdown","0")=="1":
+            return await luxury_send(interaction,"Backup requests are temporarily paused by the ESN owner.",ephemeral=True)
         sid=config.get(interaction.guild.id,f"server:{interaction.user.id}")
         if not sid: return await luxury_send(interaction, "No linked server.",ephemeral=True)
         await interaction.response.defer(ephemeral=True)
