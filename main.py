@@ -106,7 +106,7 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
-    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce', 'esn.premium_center', 'esn.billing_center'):
+    for extension in ('esn.admin', 'esn.security', 'esn.trials', 'esn.hosting', 'esn.tickets', 'esn.operations', 'esn.commerce', 'esn.premium_center', 'esn.billing_center', 'esn.max_systems'):
         await bot.load_extension(extension)
     bot.add_view(TicketPanel())
     bot.tree.add_command(PartnerGroup(partner_program))
