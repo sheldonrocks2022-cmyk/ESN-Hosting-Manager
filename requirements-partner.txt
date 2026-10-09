@@ -1,1 +1,2 @@
 discord.py>=2.3,<3
+stripe>=10,<15
