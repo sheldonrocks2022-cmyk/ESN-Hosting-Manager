@@ -98,3 +98,19 @@ class PartnerGroup(app_commands.Group):
             await self.send(interaction,"Access denied","Owner only.",error=True)
         except ValueError as exc:
             await self.send(interaction,"Update refused",str(exc),error=True)
+
+    @app_commands.command(name="pending", description="Owner: list pending partner applications")
+    async def pending(self, interaction: discord.Interaction):
+        try:
+            require_owner(interaction.user.id)
+        except PermissionError:
+            return await self.send(interaction, "Access denied", "Owner only.", error=True)
+        rows = self.program.db.execute(
+            "SELECT discord_id,created_at FROM partners WHERE status='pending' ORDER BY id LIMIT 15"
+        ).fetchall()
+        if not rows:
+            return await self.send(interaction, "Partner applications", "No pending applications.")
+        description = "\n".join(
+            f"• <@{discord_id}> — {created_at[:10]}" for discord_id, created_at in rows
+        )
+        await self.send(interaction, "Pending applications", description)
